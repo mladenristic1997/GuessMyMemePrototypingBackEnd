@@ -19,8 +19,8 @@ public class WebSocketController {
     private SimpMessageSendingOperations messagingTemplate;
 
     @MessageMapping("/message")
-    public String processMessageFromClient(@Payload String message) throws Exception {
-        String name = new Gson().fromJson(message, Map.class).get("name").toString();
+    public String processMessageFromClient(@Payload String message) {
+        String name = new Gson().fromJson(message, Map.class).get("message").toString();
         String destination = new Gson().fromJson(message, Map.class).get("id").toString();
         String url = "/topic/reply/" + destination;
         messagingTemplate.convertAndSend(url, name);
