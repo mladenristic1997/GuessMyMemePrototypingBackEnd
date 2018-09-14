@@ -34,6 +34,13 @@ public class IdAssignmentController {
         //if someone is in the lobby then generate a game with the first
         String username = new Gson().fromJson(player, Map.class).get("username").toString();
 
+        //checks if user already applied
+        for(User user : usernames){
+            if(user.getName().equals(username)){
+                if(lobby.contains(user)) return;
+            }
+        }
+
         for(User user : lobby){
             //generate room here
             //now we hardcode 100 as the number of memes, but when we implement a database we will insert that number dynamically
@@ -52,8 +59,6 @@ public class IdAssignmentController {
         //If no one is in the lobby, add the player to lobby
         for(User user : usernames){
             if(user.getName().equals(username)){
-                if(lobby.contains(user)) return;
-
                 lobby.add(user);
                 return;
             }
