@@ -16,7 +16,7 @@ public class Server implements Runnable{
     */
 
     private ServerSocket serverSocket;
-    private int port;
+    private int port = 8080;
 
     private int numberOfPlayers = 0;
 
