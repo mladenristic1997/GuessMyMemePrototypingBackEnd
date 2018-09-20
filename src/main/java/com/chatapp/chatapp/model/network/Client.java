@@ -1,5 +1,8 @@
 package com.chatapp.chatapp.model.network;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -52,11 +55,13 @@ public class Client {
         }
 
         listenToServer = new Thread(new ListenToServer(socket, this));
+        listenToServer.start();
     }
 
     public void run(){
         try{
             writer = new OutputStreamWriter(socket.getOutputStream(), "UTF-8");
+            connect();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -66,12 +71,31 @@ public class Client {
 
     //region Client Commands
 
-    public void sendQuestion(String msg){
+    public void sendToServer(JsonObject jsonObject){
+        try {
+            writer.write(jsonObject.toString() + "\n");
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
+    public void connect() throws IOException {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("Connect", "TESTING CONNECTION");
+        sendToServer(jsonObject);
+    }
+
+    public void sendQuestion(String msg){
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("Question", msg);
+        sendToServer(jsonObject);
     }
 
     public void Answer(String msg){
-
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("Answer", msg);
+        sendToServer(jsonObject);
     }
 
     public void guess(){
@@ -121,9 +145,8 @@ public class Client {
             }
             while (true) {
                 try {
-                    String line = reader.readLine();
-
-                    // Do Stuff
+                    String message = reader.readLine();
+                    System.out.println(message);
 
                 } catch (IOException e) {
                     e.printStackTrace();
