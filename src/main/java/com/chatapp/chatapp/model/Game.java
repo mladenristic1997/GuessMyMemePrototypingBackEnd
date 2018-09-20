@@ -4,8 +4,6 @@ import java.util.Random;
 
 public class Game {
 
-    //Test Commit BLAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-
     /*
     *   Game states:
     *   0 - asking question
