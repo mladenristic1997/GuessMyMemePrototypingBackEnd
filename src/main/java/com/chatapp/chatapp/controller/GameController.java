@@ -18,6 +18,10 @@ import java.util.Map;
 public class GameController {
 
     @Autowired
+    @Qualifier("gameController")
+    private GameRepository gameRepository;
+    
+    @Autowired
     private SimpMessageSendingOperations messagingTemplate;
 
     @MessageMapping("/makeAMove")

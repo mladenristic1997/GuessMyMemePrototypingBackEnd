@@ -22,10 +22,15 @@ public class IdAssignmentController {
 
     static ArrayList<User> usernames = new ArrayList<>();
     static ArrayList<User> lobby = new ArrayList<>();
-    static ArrayList<String> keys = new ArrayList<>();
+    static ArrayList<User> inGame = new ArrayList<>();
 
     @Autowired
-    private SimpMessageSendingOperations messagingTemplate;
+    @Qualifier("idAssignmentControllerMessagingTemplate")
+    public SimpMessageSendingOperations messagingTemplate;
+
+    @Autowired
+    @Qualifier("idAssignmentControllerGameRepository")
+    private GameRepository gameRepository;
 
 
     @MessageMapping("/getRoomId")
@@ -43,17 +48,16 @@ public class IdAssignmentController {
 
         for(User user : lobby){
             //generate room here
-            //now we hardcode 100 as the number of memes, but when we implement a database we will insert that number dynamically
-            Game game = new Game(user.getName(), username, 100);
-            String gameJson = new Gson().toJson(game);
+            Game game = new Game(user.getName(), username);
             //send to player who was in the lobby
             String url1 = "/topic/reply/" + user.getName();
             //send to other player
             String url2 = "/topic/reply/" + username;
-            messagingTemplate.convertAndSend(url1, gameJson);
-            messagingTemplate.convertAndSend(url2, gameJson);
-            setUsersToIngame(user.getName(), username);
+            this.inGame.add(game.getP1());
+            this.inGame.add(game.getP2());
             lobby.remove(user);
+            messagingTemplate.convertAndSend(url1, game.getP1());
+            messagingTemplate.convertAndSend(url2, game.getP2());          
             return;
         }
         //If no one is in the lobby, add the player to lobby
@@ -64,12 +68,11 @@ public class IdAssignmentController {
             }
         }
     }
-
-    @GetMapping
-    @RequestMapping("/sendInvitation")
-    @ResponseStatus(HttpStatus.OK)
+    @MessageMapping("/sendInvitation")
     @CrossOrigin(origins = "http://localhost:4200")
-    public void sendInvitation(@RequestParam("requestingPlayer") String requestingPlayer, @RequestParam("otherPlayer") String otherPlayer){
+    public void sendInvitation(@Payload String data) throws InterruptedException{
+        String requestingPlayer = new Gson().fromJson(data, Map.class).get("requestingPlayer").toString();
+        String otherPlayer = new Gson().fromJson(data, Map.class).get("otherPlayer").toString();
         String url = "/topic/reply/" + otherPlayer;
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("requestingPlayer", requestingPlayer);
@@ -77,35 +80,61 @@ public class IdAssignmentController {
         messagingTemplate.convertAndSend(url, json);
     }
 
-    @GetMapping
-    @RequestMapping("/acceptInvitation")
-    @ResponseStatus(HttpStatus.OK)
+    @MessageMapping("/acceptInvitation")
     @CrossOrigin(origins = "http://localhost:4200")
-    public void acceptInvitation(@RequestParam("playerOne") String playerOne, @RequestParam("playerTwo") String playerTwo){
-        Game game = new Game(playerOne, playerTwo, 100);
-        game.setRoomId("" + System.currentTimeMillis());
-        String gameJson = new Gson().toJson(game);
+    public void acceptInvitation(@Payload String data){
+        String p1 = new Gson().fromJson(data, Map.class).get("playerOne").toString();
+        String p2 = new Gson().fromJson(data, Map.class).get("playerTwo").toString();
+        Game game = new Game(p1, p2);
+        gameRepository.put(game);
         //send to player who was in the lobby
-        String url1 = "/topic/reply/" + playerOne;
+        String url1 = "/topic/reply/" + p1;
         //send to other player
-        String url2 = "/topic/reply/" + playerTwo;
-        messagingTemplate.convertAndSend(url1, gameJson);
-        messagingTemplate.convertAndSend(url2, gameJson);
-        setUsersToIngame(playerOne, playerTwo);
+        String url2 = "/topic/reply/" + p2;
+        this.inGame.add(game.getP1());
+        this.inGame.add(game.getP2());
+        messagingTemplate.convertAndSend(url1, game.getP1());
+        messagingTemplate.convertAndSend(url2, game.getP2());
     }
 
-    private void setUsersToIngame(String playerOne, String playerTwo){
-        for(User player : usernames) {
-            if (player.getName().equals(playerOne)){
-                player.setInGame(true);
+    @MessageMapping("/refuseInvitation")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void refuseInvitation(@Payload String data){
+        String p1 = new Gson().fromJson(data, Map.class).get("otherPlayer").toString();
+        //send to player who was in the lobby
+        String url1 = "/topic/reply/" + p1;
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("refuseInvite", true)
+        messagingTemplate.convertAndSend(url1, jsonObject);
+    }
+
+    @MessageMapping("/isOtherPlayerAvailable")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void isOtherPlayerAvailable(@Payload String data){
+        String requestingPlayer = new Gson().fromJson(data, Map.class).get("requestingPlayer").toString();
+        String otherPlayer = new Gson().fromJson(data, Map.class).get("otherPlayer").toString();
+        String url = "/topic/reply/" + requestingPlayer;
+        boolean isAvailable = true;
+        for(User user : lobby){
+            if(user.getName().equals(otherPlayer)){
+                isAvailable = false;
                 break;
             }
         }
-        for(User player : usernames){
-            if(player.getName().equals(playerTwo)){
-                player.setInGame(true);
+        for(User user : inGame){
+            if(user.getName().equals(otherPlayer)){
+                isAvailable = false;
                 break;
             }
+        }
+        JsonObject jsonObject = new JsonObject();
+        if(isAvailable){
+            jsonObject.addProperty("playerAvailable", true)
+            messagingTemplate.convertAndSend(url, jsonObject);
+        }
+        else{
+            jsonObject.addProperty("playerAvailable", false)
+            messagingTemplate.convertAndSend(url, jsonObject);
         }
     }
 
