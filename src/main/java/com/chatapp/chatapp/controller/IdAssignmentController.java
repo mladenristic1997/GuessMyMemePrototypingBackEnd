@@ -1,11 +1,12 @@
 package com.chatapp.chatapp.controller;
 
-import ch.qos.logback.core.net.SyslogOutputStream;
 import com.chatapp.chatapp.model.Game;
+import com.chatapp.chatapp.model.Player;
 import com.chatapp.chatapp.model.User;
-import com.google.gson.JsonElement;
+import com.chatapp.chatapp.repository.GameRepository;
 import com.google.gson.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -14,6 +15,7 @@ import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import com.google.gson.Gson;
 
 
+import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -22,16 +24,13 @@ public class IdAssignmentController {
 
     static ArrayList<User> usernames = new ArrayList<>();
     static ArrayList<User> lobby = new ArrayList<>();
-    static ArrayList<User> inGame = new ArrayList<>();
+    static ArrayList<Player> inGame = new ArrayList<>();
 
-    @Autowired
-    @Qualifier("idAssignmentControllerMessagingTemplate")
-    public SimpMessageSendingOperations messagingTemplate;
+    @Resource
+    SimpMessageSendingOperations simpMessageSendingOperationsIdAssignmentController;
 
-    @Autowired
-    @Qualifier("idAssignmentControllerGameRepository")
-    private GameRepository gameRepository;
-
+    @Resource
+    GameRepository gameRepositoryIdAssignmentController;
 
     @MessageMapping("/getRoomId")
     @CrossOrigin(origins = "http://localhost:4200")
@@ -56,8 +55,12 @@ public class IdAssignmentController {
             this.inGame.add(game.getP1());
             this.inGame.add(game.getP2());
             lobby.remove(user);
-            messagingTemplate.convertAndSend(url1, game.getP1());
-            messagingTemplate.convertAndSend(url2, game.getP2());          
+            Gson gson = new Gson();
+            String jsonP1 = gson.toJson(game.getP1());
+            String jsonP2 = gson.toJson(game.getP2());
+            gameRepositoryIdAssignmentController.save(game);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url1, jsonP1);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url2, jsonP2);
             return;
         }
         //If no one is in the lobby, add the player to lobby
@@ -77,7 +80,7 @@ public class IdAssignmentController {
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("requestingPlayer", requestingPlayer);
         String json = jsonObject.toString();
-        messagingTemplate.convertAndSend(url, json);
+        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, json);
     }
 
     @MessageMapping("/acceptInvitation")
@@ -86,15 +89,18 @@ public class IdAssignmentController {
         String p1 = new Gson().fromJson(data, Map.class).get("playerOne").toString();
         String p2 = new Gson().fromJson(data, Map.class).get("playerTwo").toString();
         Game game = new Game(p1, p2);
-        gameRepository.put(game);
+        gameRepositoryIdAssignmentController.save(game);
         //send to player who was in the lobby
         String url1 = "/topic/reply/" + p1;
         //send to other player
         String url2 = "/topic/reply/" + p2;
         this.inGame.add(game.getP1());
         this.inGame.add(game.getP2());
-        messagingTemplate.convertAndSend(url1, game.getP1());
-        messagingTemplate.convertAndSend(url2, game.getP2());
+        Gson gson = new Gson();
+        String jsonP1 = gson.toJson(game.getP1());
+        String jsonP2 = gson.toJson(game.getP2());
+        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url1, jsonP1);
+        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url2, jsonP2);
     }
 
     @MessageMapping("/refuseInvitation")
@@ -104,8 +110,8 @@ public class IdAssignmentController {
         //send to player who was in the lobby
         String url1 = "/topic/reply/" + p1;
         JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("refuseInvite", true)
-        messagingTemplate.convertAndSend(url1, jsonObject);
+        jsonObject.addProperty("refuseInvitation", true);
+        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url1, jsonObject);
     }
 
     @MessageMapping("/isOtherPlayerAvailable")
@@ -121,20 +127,20 @@ public class IdAssignmentController {
                 break;
             }
         }
-        for(User user : inGame){
-            if(user.getName().equals(otherPlayer)){
+        for(Player player : inGame){
+            if(player.getPlayerName().equals(otherPlayer)){
                 isAvailable = false;
                 break;
             }
         }
         JsonObject jsonObject = new JsonObject();
         if(isAvailable){
-            jsonObject.addProperty("playerAvailable", true)
-            messagingTemplate.convertAndSend(url, jsonObject);
+            jsonObject.addProperty("playerAvailable", true);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject);
         }
         else{
-            jsonObject.addProperty("playerAvailable", false)
-            messagingTemplate.convertAndSend(url, jsonObject);
+            jsonObject.addProperty("playerAvailable", false);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject);
         }
     }
 

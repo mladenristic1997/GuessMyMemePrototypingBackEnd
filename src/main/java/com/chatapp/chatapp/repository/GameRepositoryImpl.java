@@ -1,12 +1,26 @@
 package com.chatapp.chatapp.repository;
 
-@Repository
+import com.chatapp.chatapp.model.Game;
+import com.chatapp.chatapp.model.Player;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Service;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
+import java.util.Map;
+
+@Service
+@ComponentScan(basePackages = {"com.chatapp.chatapp.config"})
 public class GameRepositoryImpl implements GameRepository {
     private static final String KEY = "game";
 
     private RedisTemplate<String, Game> redisTemplate;
-    @Resource(name="redisTemplate")
-    private HashOperations<String, String, Person> hashOps;
+
+    private HashOperations<String, String, Game> hashOperations;
 
     @Autowired
     public GameRepositoryImpl(RedisTemplate<String, Game> redisTemplate){
