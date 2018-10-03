@@ -6,6 +6,7 @@ import com.chatapp.chatapp.repository.GameRepository;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import org.jboss.logging.Message;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Map;
 
 
@@ -41,6 +43,38 @@ public class GameController {
         Game game = gameRepositoryGameController.findById(player.getId());
         game.getP1().setPlayerState((game.getP1().getPlayerState() + 1) % 6);
         game.getP2().setPlayerState((game.getP2().getPlayerState() + 1) % 6);
+        gameRepositoryGameController.save(game);
+        Player sendTo = new Player();
+        for(Player playerTemp : game.getPlayers()) {
+            if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
+                sendTo = playerTemp;
+                break;
+            }
+        }
+        JsonObject jo = new JsonObject();
+        jo.addProperty("message", message);
+        jo.addProperty("player", gson.toJson(sendTo));
+        String jsonFormattedString = jo.toString().replace("\\\"", "\"");
+        String tempA = jsonFormattedString.replace("player\":\"", "player\":");
+        String tempB = tempA.replace("}\"}", "}}");
+        String url = "/topic/reply/" + sendTo.getId() + "/" + sendTo.getPlayerName();
+        simpMessageSendingOperationsGameController.convertAndSend(url, tempB);
+    }
+
+    @MessageMapping("/endTurn")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void endTurn(@Payload String endTurn) {
+        String playerData = new Gson().fromJson(endTurn, Map.class).get("player").toString();
+        Player player = new Gson().fromJson(playerData, Player.class);
+        Game game = gameRepositoryGameController.findById(player.getId());
+        game.getP1().setPlayerState((game.getP1().getPlayerState() + 1) % 6);
+        game.getP2().setPlayerState((game.getP2().getPlayerState() + 1) % 6);
+        for(Player temp : game.getPlayers()) { //set flipped memes to be like we get them in Payload
+            if(temp.getPlayerName().equals(player.getPlayerName())) {
+                temp.setFlippedMemes(player.getFlippedMemes());
+                //try to call isCorrectMemeFlipped method from here, because if user flipped the incorrect meme, he lost
+            }
+        }
         game.getP1().setOpponentFlippedMemes(game.getP2().getFlippedMemes());
         game.getP2().setOpponentFlippedMemes(game.getP1().getFlippedMemes());
         gameRepositoryGameController.save(game);
@@ -48,18 +82,114 @@ public class GameController {
         for(Player playerTemp : game.getPlayers()) {
             if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
                 sendTo = playerTemp;
+                break;
             }
         }
-        Gson response = new GsonBuilder().create();
-        JSONObject params = new JSONObject();
-        params.put("player", sendTo);
-        params.put("message", message);
+        JsonObject jo = new JsonObject();
+        jo.addProperty("playerEndTurn", new Gson().toJson(sendTo));
+        String jsonFormattedString = jo.toString().replace("\\\"", "\"");
+        String tempA = jsonFormattedString.replace("playerEndTurn\":\"", "playerEndTurn\":");
+        String tempB = tempA.replace("}\"}", "}}");
         String url = "/topic/reply/" + sendTo.getId() + "/" + sendTo.getPlayerName();
-        simpMessageSendingOperationsGameController.convertAndSend(url, response);
-        
+        System.out.println(tempB);
+        simpMessageSendingOperationsGameController.convertAndSend(url, tempB);
     }
 
+    @MessageMapping("/guessMeme")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void guessMeme(@Payload String guess) {
+        String playerData = new Gson().fromJson(guess, Map.class).get("player").toString();
+        int guessedMemeId = (int)Double.parseDouble(new Gson().fromJson(guess, Map.class).get("guessedMemeId").toString());
+        Player player = new Gson().fromJson(playerData, Player.class);
+        Game game = gameRepositoryGameController.findById(player.getId());
+        game.getP1().setPlayerState((game.getP1().getPlayerState() + 1) % 6);
+        game.getP2().setPlayerState((game.getP2().getPlayerState() + 1) % 6);
+        Player winningPlayer = new Player();
+        Player losingPlayer = new Player();
+        boolean guessedCorrectly = false;
+        ArrayList<Player> players = new ArrayList<>(game.getPlayers());
+        for(Player temp : players) {
+            if(!temp.getPlayerName().equals(player.getPlayerName())) {
+                //check if correct meme has been guessed and send out win/lose messages
+                if(temp.getPlayerMeme() == guessedMemeId){
+                    winningPlayer = player;
+                    guessedCorrectly = true;
+                    losingPlayer = temp;
+                } else {
+                    losingPlayer = player;
+                    winningPlayer = temp;
+                }
+                break;
+            }
+        }
+        String wonUrl = "/topic/reply/" + winningPlayer.getId() + "/" + winningPlayer.getPlayerName();
+        String lostUrl = "/topic/reply/" + losingPlayer.getId() + "/" + losingPlayer.getPlayerName();
+        System.out.println("Winning player: " + winningPlayer.getPlayerName());
+        System.out.println("Losing player: " + losingPlayer.getPlayerName());
+        if(guessedCorrectly) {
+            JsonObject won = new JsonObject();
+            won.addProperty("endGameStatus", "You won!");
+            won.addProperty("endGameMessage", "You guessed correctly!");
+            JsonObject lost = new JsonObject();
+            lost.addProperty("endGameStatus", "You lost!");
+            lost.addProperty("endGameMessage", "Your opponent guessed the correct meme!");
+            JsonObject sendWon = new JsonObject();
+            sendWon.add("gameOver", won);
+            JsonObject sendLost = new JsonObject();
+            sendLost.add("gameOver", lost);
+            System.out.println("won: " + sendWon);
+            System.out.println("lost: " + sendLost);
+            sendOutMessage(wonUrl, sendWon.toString());
+            sendOutMessage(lostUrl, sendLost.toString());
+        }
+        else {
+            JsonObject won = new JsonObject();
+            won.addProperty("endGameStatus", "You won!");
+            won.addProperty("endGameMessage", "Your opponent guessed incorrectly!");
+            JsonObject lost = new JsonObject();
+            lost.addProperty("endGameStatus", "You lost!");
+            lost.addProperty("endGameMessage", "You guessed the incorrect meme!");
+            JsonObject sendWon = new JsonObject();
+            sendWon.add("gameOver", won);
+            JsonObject sendLost = new JsonObject();
+            sendLost.add("gameOver", lost);
+            System.out.println("won: " + sendWon);
+            System.out.println("lost: " + sendLost);
+            sendOutMessage(wonUrl, sendWon.toString());
+            sendOutMessage(lostUrl, sendLost.toString());
+        }
+        IdAssignmentController.inGame.remove(game.getP1());
+        IdAssignmentController.inGame.remove(game.getP2());
+        gameRepositoryGameController.delete(game.getId());
+    }
 
+    @MessageMapping("/quit")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void quit(@Payload String playerJson) {
+        String playerData = new Gson().fromJson(playerJson, Map.class).get("player").toString();
+        Gson gson = new Gson();
+        Player player = gson.fromJson(playerData, Player.class);
+        Game game = gameRepositoryGameController.findById(player.getId());
+        gameRepositoryGameController.delete(game.getId());
+        Player sendTo = new Player();
+            for(Player playerTemp : game.getPlayers()) {
+            if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
+                sendTo = playerTemp;
+                break;
+            }
+        }
+        String wonUrl = "/topic/reply/" + sendTo.getId() + "/" + sendTo.getPlayerName();
+        JsonObject won = new JsonObject();
+        won.addProperty("endGameStatus", "You won!");
+        won.addProperty("endGameMessage", "Your opponent quit the game!");
+        JsonObject sendWon = new JsonObject();
+        sendWon.add("gameOver", won);
+        sendOutMessage(wonUrl, sendWon.toString());
+    }
+
+    private void sendOutMessage(String url, String message){
+        simpMessageSendingOperationsGameController.convertAndSend(url, message);
+    }
 
     //implement cleanup method that sets user inGame states to false
 

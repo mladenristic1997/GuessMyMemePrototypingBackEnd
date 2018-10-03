@@ -31,6 +31,8 @@ public class Player implements Serializable {
     public Player(String name){
         this.playerName = name;
         this.playerMeme = Player.rand.nextInt(24);
+        opponentFlippedMemes.add(-1);
+        flippedMemes.add(-1);
     }
 
     public static Random getRand() {
@@ -47,6 +49,22 @@ public class Player implements Serializable {
 
     public void setPlayerName(String playerName) {
         this.playerName = playerName;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getOpponentName() {
+        return opponentName;
+    }
+
+    public void setOpponentName(String opponentName) {
+        this.opponentName = opponentName;
     }
 
     public int getPlayerMeme() {
@@ -79,21 +97,5 @@ public class Player implements Serializable {
 
     public void setOpponentFlippedMemes(ArrayList<Integer> opponentFlippedMemes) {
         this.opponentFlippedMemes = opponentFlippedMemes;
-    }
-
-    public String getOpponentName() {
-        return opponentName;
-    }
-
-    public void setOpponentName(String opponentName) {
-        this.opponentName = opponentName;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
     }
 }
