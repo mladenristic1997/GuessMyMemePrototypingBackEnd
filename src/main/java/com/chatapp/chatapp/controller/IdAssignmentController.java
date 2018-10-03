@@ -111,7 +111,7 @@ public class IdAssignmentController {
         String url1 = "/topic/reply/" + p1;
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("refuseInvitation", true);
-        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url1, jsonObject);
+        simpMessageSendingOperationsIdAssignmentController.convertAndSend(url1, jsonObject.toString());
     }
 
     @MessageMapping("/isOtherPlayerAvailable")
@@ -121,6 +121,19 @@ public class IdAssignmentController {
         String otherPlayer = new Gson().fromJson(data, Map.class).get("otherPlayer").toString();
         String url = "/topic/reply/" + requestingPlayer;
         boolean isAvailable = true;
+        boolean isPlayerExists = false;
+        for(User user : usernames){
+            if(user.getName().equals(otherPlayer)){
+                isPlayerExists = true;
+                break;
+            }
+        }
+        if(!isPlayerExists){
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.addProperty("playerExists", false);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject.toString());
+            return;
+        }
         for(User user : lobby){
             if(user.getName().equals(otherPlayer)){
                 isAvailable = false;
@@ -136,11 +149,11 @@ public class IdAssignmentController {
         JsonObject jsonObject = new JsonObject();
         if(isAvailable){
             jsonObject.addProperty("playerAvailable", true);
-            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject.toString());
         }
         else{
             jsonObject.addProperty("playerAvailable", false);
-            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject);
+            simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, jsonObject.toString());
         }
     }
 

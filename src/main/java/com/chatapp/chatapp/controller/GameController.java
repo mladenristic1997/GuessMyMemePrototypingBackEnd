@@ -72,11 +72,47 @@ public class GameController {
         for(Player temp : game.getPlayers()) { //set flipped memes to be like we get them in Payload
             if(temp.getPlayerName().equals(player.getPlayerName())) {
                 temp.setFlippedMemes(player.getFlippedMemes());
-                //try to call isCorrectMemeFlipped method from here, because if user flipped the incorrect meme, he lost
+                break;
             }
         }
         game.getP1().setOpponentFlippedMemes(game.getP2().getFlippedMemes());
         game.getP2().setOpponentFlippedMemes(game.getP1().getFlippedMemes());
+        //check if player flipped the winning meme
+        Player winningPlayer = new Player();
+        Player losingPlayer = new Player();
+        ArrayList<Player> playerList = new ArrayList<>(game.getPlayers());
+        ArrayList<Player> playerListAux = new ArrayList<>(game.getPlayers());
+        for(Player temp : playerList){
+            for(Integer i : temp.getOpponentFlippedMemes()){
+                if(i.intValue() == temp.getPlayerMeme()){
+                    winningPlayer = temp;
+                    playerListAux.remove(temp);
+                    losingPlayer = playerListAux.remove(0);
+                    break;
+                }
+            }
+        }
+        //if player flipped the winning meme
+        if(playerListAux.size() == 0){
+            String wonUrl = "/topic/reply/" + winningPlayer.getId() + "/" + winningPlayer.getPlayerName();
+            String lostUrl = "/topic/reply/" + losingPlayer.getId() + "/" + losingPlayer.getPlayerName();
+            JsonObject won = new JsonObject();
+            won.addProperty("endGameStatus", "You won!");
+            won.addProperty("endGameMessage", "Your opponent flipped the winning meme!");
+            JsonObject lost = new JsonObject();
+            lost.addProperty("endGameStatus", "You lost!");
+            lost.addProperty("endGameMessage", "You flipped the winning meme!");
+            JsonObject sendWon = new JsonObject();
+            sendWon.add("gameOver", won);
+            JsonObject sendLost = new JsonObject();
+            sendLost.add("gameOver", lost);
+            sendOutMessage(wonUrl, sendWon.toString());
+            sendOutMessage(lostUrl, sendLost.toString());
+            IdAssignmentController.inGame.remove(game.getP1());
+            IdAssignmentController.inGame.remove(game.getP2());
+            gameRepositoryGameController.delete(game.getId());
+            return;
+        }
         gameRepositoryGameController.save(game);
         Player sendTo = new Player();
         for(Player playerTemp : game.getPlayers()) {
@@ -137,8 +173,6 @@ public class GameController {
             sendWon.add("gameOver", won);
             JsonObject sendLost = new JsonObject();
             sendLost.add("gameOver", lost);
-            System.out.println("won: " + sendWon);
-            System.out.println("lost: " + sendLost);
             sendOutMessage(wonUrl, sendWon.toString());
             sendOutMessage(lostUrl, sendLost.toString());
         }
@@ -153,8 +187,6 @@ public class GameController {
             sendWon.add("gameOver", won);
             JsonObject sendLost = new JsonObject();
             sendLost.add("gameOver", lost);
-            System.out.println("won: " + sendWon);
-            System.out.println("lost: " + sendLost);
             sendOutMessage(wonUrl, sendWon.toString());
             sendOutMessage(lostUrl, sendLost.toString());
         }
@@ -171,6 +203,8 @@ public class GameController {
         Player player = gson.fromJson(playerData, Player.class);
         Game game = gameRepositoryGameController.findById(player.getId());
         gameRepositoryGameController.delete(game.getId());
+        IdAssignmentController.inGame.remove(game.getP1());
+        IdAssignmentController.inGame.remove(game.getP2());
         Player sendTo = new Player();
             for(Player playerTemp : game.getPlayers()) {
             if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
