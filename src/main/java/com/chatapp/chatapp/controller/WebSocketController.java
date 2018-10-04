@@ -27,8 +27,6 @@ public class WebSocketController {
         return name;
     }
 
-
-
     @MessageExceptionHandler
     public String handleException(Throwable exception) {
         simpMessageSendingOperationsWebSocketController.convertAndSend("/errors", exception.getMessage());

@@ -83,6 +83,24 @@ public class IdAssignmentController {
         simpMessageSendingOperationsIdAssignmentController.convertAndSend(url, json);
     }
 
+    @MessageMapping("/removePlayer")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void removeFromLobby(@Payload String data) throws InterruptedException{
+        String player = new Gson().fromJson(data, Map.class).get("player").toString();
+        for(User user : lobby){
+            if(user.getName().equals(player)){
+                lobby.remove(user);
+                break;
+            }
+        }
+        for(User user : usernames){
+            if(user.getName().equals(player)){
+                usernames.remove(user);
+                break;
+            }
+        }
+    }
+
     @MessageMapping("/acceptInvitation")
     @CrossOrigin(origins = "http://localhost:4200")
     public void acceptInvitation(@Payload String data){

@@ -2,6 +2,7 @@ package com.chatapp.chatapp.controller;
 
 import com.chatapp.chatapp.model.Game;
 import com.chatapp.chatapp.model.Player;
+import com.chatapp.chatapp.model.User;
 import com.chatapp.chatapp.repository.GameRepository;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -106,11 +107,11 @@ public class GameController {
             sendWon.add("gameOver", won);
             JsonObject sendLost = new JsonObject();
             sendLost.add("gameOver", lost);
+            gameRepositoryGameController.delete(game.getId());
+            //removePlayersFromUsernames(game.getP1().getPlayerName());
+            //removePlayersFromUsernames(game.getP2().getPlayerName());
             sendOutMessage(wonUrl, sendWon.toString());
             sendOutMessage(lostUrl, sendLost.toString());
-            IdAssignmentController.inGame.remove(game.getP1());
-            IdAssignmentController.inGame.remove(game.getP2());
-            gameRepositoryGameController.delete(game.getId());
             return;
         }
         gameRepositoryGameController.save(game);
@@ -127,7 +128,6 @@ public class GameController {
         String tempA = jsonFormattedString.replace("playerEndTurn\":\"", "playerEndTurn\":");
         String tempB = tempA.replace("}\"}", "}}");
         String url = "/topic/reply/" + sendTo.getId() + "/" + sendTo.getPlayerName();
-        System.out.println(tempB);
         simpMessageSendingOperationsGameController.convertAndSend(url, tempB);
     }
 
@@ -160,8 +160,6 @@ public class GameController {
         }
         String wonUrl = "/topic/reply/" + winningPlayer.getId() + "/" + winningPlayer.getPlayerName();
         String lostUrl = "/topic/reply/" + losingPlayer.getId() + "/" + losingPlayer.getPlayerName();
-        System.out.println("Winning player: " + winningPlayer.getPlayerName());
-        System.out.println("Losing player: " + losingPlayer.getPlayerName());
         if(guessedCorrectly) {
             JsonObject won = new JsonObject();
             won.addProperty("endGameStatus", "You won!");
@@ -190,9 +188,9 @@ public class GameController {
             sendOutMessage(wonUrl, sendWon.toString());
             sendOutMessage(lostUrl, sendLost.toString());
         }
-        IdAssignmentController.inGame.remove(game.getP1());
-        IdAssignmentController.inGame.remove(game.getP2());
         gameRepositoryGameController.delete(game.getId());
+        //removePlayersFromUsernames(game.getP1().getPlayerName());
+        //removePlayersFromUsernames(game.getP2().getPlayerName());
     }
 
     @MessageMapping("/quit")
@@ -202,11 +200,10 @@ public class GameController {
         Gson gson = new Gson();
         Player player = gson.fromJson(playerData, Player.class);
         Game game = gameRepositoryGameController.findById(player.getId());
-        gameRepositoryGameController.delete(game.getId());
-        IdAssignmentController.inGame.remove(game.getP1());
-        IdAssignmentController.inGame.remove(game.getP2());
+        removePlayersFromInGame(player);
+        //removePlayersFromUsernames(player.getPlayerName());
         Player sendTo = new Player();
-            for(Player playerTemp : game.getPlayers()) {
+        for(Player playerTemp : game.getPlayers()) {
             if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
                 sendTo = playerTemp;
                 break;
@@ -221,10 +218,87 @@ public class GameController {
         sendOutMessage(wonUrl, sendWon.toString());
     }
 
+    @MessageMapping("/cleanMe")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void cleanMe(@Payload String playerJson) {
+        String playerData = new Gson().fromJson(playerJson, Map.class).get("player").toString();
+        Gson gson = new Gson();
+        Player player = gson.fromJson(playerData, Player.class);
+        removePlayersFromLobby(player.getPlayerName());
+        removePlayersFromUsernames(player.getPlayerName());
+        removePlayersFromInGame(player);
+    }
+
+    @MessageMapping("/removeFromInGame")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void removeFromInGame(@Payload String playerJson) {
+        String playerData = new Gson().fromJson(playerJson, Map.class).get("player").toString();
+        Gson gson = new Gson();
+        Player player = gson.fromJson(playerData, Player.class);
+        removePlayersFromInGame(player);
+    }
+
+    @MessageMapping("/playerReloaded")
+    @CrossOrigin(origins = "http://localhost:4200")
+    public void playerReloaded(@Payload String playerJson) {
+        String playerData = new Gson().fromJson(playerJson, Map.class).get("player").toString();
+        Gson gson = new Gson();
+        Player player = gson.fromJson(playerData, Player.class);
+        removePlayersFromUsernames(player.getPlayerName());
+        removePlayersFromLobby(player.getPlayerName());
+        Game game = gameRepositoryGameController.findById(player.getId());
+        Player sendTo = new Player();
+        for(Player playerTemp : game.getPlayers()) {
+            if (!playerTemp.getPlayerName().equals(player.getPlayerName())) {
+                sendTo = playerTemp;
+                break;
+            }
+        }
+        gameRepositoryGameController.delete(game.getId());
+        removePlayersFromInGame(player);
+        String wonUrl = "/topic/reply/" + sendTo.getId() + "/" + sendTo.getPlayerName();
+        JsonObject won = new JsonObject();
+        won.addProperty("endGameStatus", "You won!");
+        won.addProperty("endGameMessage", "Your opponent quit the game!");
+        JsonObject sendWon = new JsonObject();
+        sendWon.add("gameOver", won);
+        sendOutMessage(wonUrl, sendWon.toString());
+    }
+
     private void sendOutMessage(String url, String message){
         simpMessageSendingOperationsGameController.convertAndSend(url, message);
     }
 
+    private void removePlayersFromLobby(String p1){
+        ArrayList<User> temp = new ArrayList<>(IdAssignmentController.lobby);
+        for(User user : IdAssignmentController.lobby){
+            if(user.getName().equals(p1))
+                temp.remove(user);
+        }
+        IdAssignmentController.lobby = temp;
+    }
+
+    private void removePlayersFromUsernames(String p1){
+        ArrayList<User> temp = new ArrayList<>(IdAssignmentController.usernames);
+        for(User user : IdAssignmentController.usernames){
+            if(user.getName().equals(p1)) {
+                temp.remove(user);
+                break;
+            }
+        }
+        IdAssignmentController.usernames = temp;
+    }
+
+    private void removePlayersFromInGame(Player player){
+        ArrayList<Player> temp = new ArrayList<>(IdAssignmentController.inGame);
+        for(Player ptemp : IdAssignmentController.inGame){
+            if(player.getPlayerName().equals(ptemp.getPlayerName())) {
+                temp.remove(ptemp);
+                break;
+            }
+        }
+        IdAssignmentController.inGame = temp;
+    }
     //implement cleanup method that sets user inGame states to false
 
 }
